@@ -237,6 +237,7 @@
   </div>
   <div class="button-row">
     <input type="file" id="fileInput" accept="image/*" style="display: none" />
+    <input type="file" id="r2UploadInput" accept="image/*" style="display: none" />
     <button class="btn" onclick="triggerFileUpload()">本地上传</button>
     <button class="btn" onclick="uploadCurrentFileToS3()">上传到 R2</button>
     <button class="btn" onclick="copyShareLink()">复制分享链接</button>
@@ -296,7 +297,6 @@
     S3_PUBLIC_BASE_URL: ''
   };
   const DEFAULT_UPLOAD_ENDPOINT = `${window.location.origin}/upload`;
-  const DEFAULT_UPLOAD_URL_ENDPOINT = `${window.location.origin}/upload-url`;
 
   function showLoading(show) {
     const loading = document.getElementById('loading');
@@ -635,38 +635,26 @@
     return `${base}/${String(key).replace(/^\//, '')}`;
   }
 
-  async function uploadCurrentFileToS3() {
+  function uploadCurrentFileToS3() {
+    document.getElementById('r2UploadInput').click();
+  }
+
+  async function handleR2UploadFile(file) {
+    if (!file || !file.type.startsWith('image/')) {
+      alert('请选择图片文件');
+      return;
+    }
+
     const uploadEndpoint = APP_CONFIG.S3_UPLOAD_ENDPOINT || DEFAULT_UPLOAD_ENDPOINT;
-    const uploadUrlEndpoint = getUploadUrlEndpoint(uploadEndpoint);
 
     try {
       showLoading(true);
-      let response;
-      if (currentLocalFile) {
-        const formData = new FormData();
-        formData.append('file', currentLocalFile);
-        response = await fetch(uploadEndpoint, {
-          method: 'POST',
-          body: formData
-        });
-      } else {
-        const currentUrl = (document.getElementById('imageUrlInput').value || currentImageUrl || '').trim();
-        if (!currentUrl) {
-          alert('没有可上传的图片，请先输入 URL 或选择本地文件');
-          return;
-        }
-        if (currentUrl.startsWith('blob:') || currentUrl.startsWith('data:')) {
-          alert('当前是本地临时地址，请先本地上传后再点击“上传到 R2”');
-          return;
-        }
-        response = await fetch(uploadUrlEndpoint, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ url: currentUrl })
-        });
-      }
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await fetch(uploadEndpoint, {
+        method: 'POST',
+        body: formData
+      });
 
       if (!response.ok) {
         let message = `HTTP ${response.status}`;
@@ -689,6 +677,10 @@
 
       currentImageUrl = uploadedUrl;
       currentLocalFile = null;
+      if (activeObjectUrl) {
+        URL.revokeObjectURL(activeObjectUrl);
+        activeObjectUrl = null;
+      }
       document.getElementById('imageUrlInput').value = uploadedUrl;
       await loadNewImage();
       await copyShareLink();
@@ -696,21 +688,6 @@
       alert(`R2 上传失败: ${error.message || 'unknown error'}`);
     } finally {
       showLoading(false);
-    }
-  }
-
-  function getUploadUrlEndpoint(uploadEndpoint) {
-    try {
-      const parsed = new URL(uploadEndpoint, window.location.href);
-      parsed.pathname = parsed.pathname.replace(/\/+$/, '');
-      if (parsed.pathname.endsWith('/upload')) {
-        parsed.pathname = `${parsed.pathname.slice(0, -7)}/upload-url`;
-      } else {
-        parsed.pathname = '/upload-url';
-      }
-      return parsed.toString();
-    } catch {
-      return DEFAULT_UPLOAD_URL_ENDPOINT;
     }
   }
 
@@ -761,6 +738,14 @@
       const file = event.target.files && event.target.files[0];
       if (file) {
         await loadLocalFile(file);
+      }
+      event.target.value = '';
+    });
+
+    document.getElementById('r2UploadInput').addEventListener('change', async (event) => {
+      const file = event.target.files && event.target.files[0];
+      if (file) {
+        await handleR2UploadFile(file);
       }
       event.target.value = '';
     });
