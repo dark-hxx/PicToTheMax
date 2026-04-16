@@ -17,7 +17,7 @@
 
 - 悬停圆点逐步揭示图片
 - URL / 本地文件 / 拖拽 / 粘贴图片加载
-- 上传到 R2 并生成可分享链接
+- 上传到 R2 并生成可分享链接（支持本地文件与远程 URL）
 - 自动揭示、全部揭示、缩放、全屏、导出
 
 ## 目录说明
@@ -93,6 +93,12 @@ npm run cf:deploy
 ### GET `/files/:key`
 
 返回 R2 图片文件。
+
+### POST `/upload-url`
+
+- Content-Type: `application/json`
+- 入参：`{ "url": "https://example.com/image.jpg" }`
+- 用于把远程图片 URL 直接拉取并存入 R2（不需要先本地下载再上传）
 
 ### GET `/health`
 

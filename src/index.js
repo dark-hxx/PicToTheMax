@@ -20,6 +20,10 @@ export default {
       return handleUpload(request, env);
     }
 
+    if (pathname === '/upload-url' && request.method === 'POST') {
+      return handleUploadUrl(request, env);
+    }
+
     if (pathname.startsWith('/files/') && request.method === 'GET') {
       return handleGetFile(request, env, pathname);
     }
@@ -55,41 +59,93 @@ async function handleUpload(request, env) {
     return jsonResponse({ error: 'Only image files are allowed' }, 400, request, env);
   }
 
-  const maxUploadBytes = Number.parseInt(env.MAX_UPLOAD_BYTES || '', 10);
-  const uploadLimit = Number.isFinite(maxUploadBytes) && maxUploadBytes > 0
-    ? maxUploadBytes
-    : DEFAULT_MAX_UPLOAD_BYTES;
+  const uploadLimit = getUploadLimit(env);
 
   if (file.size > uploadLimit) {
     return jsonResponse({ error: `File too large. Max: ${uploadLimit} bytes` }, 400, request, env);
   }
 
-  if (!env.R2_BUCKET) {
-    return jsonResponse({ error: 'R2 bucket binding missing' }, 500, request, env);
+  const body = await file.arrayBuffer();
+  return saveImageToR2(request, env, {
+    body,
+    contentType: file.type,
+    fileName: file.name
+  });
+}
+
+async function handleUploadUrl(request, env) {
+  const contentType = request.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    return jsonResponse({ error: 'Content-Type must be application/json' }, 400, request, env);
   }
 
-  const key = buildObjectKey(file, env);
-  const body = await file.arrayBuffer();
+  let payload;
+  try {
+    payload = await request.json();
+  } catch {
+    return jsonResponse({ error: 'Invalid JSON body' }, 400, request, env);
+  }
 
-  await env.R2_BUCKET.put(key, body, {
-    httpMetadata: {
-      contentType: file.type,
-      cacheControl: 'public, max-age=31536000, immutable'
-    }
+  const rawUrl = typeof payload?.url === 'string' ? payload.url.trim() : '';
+  if (!rawUrl) {
+    return jsonResponse({ error: 'Missing url field' }, 400, request, env);
+  }
+
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(rawUrl);
+  } catch {
+    return jsonResponse({ error: 'Invalid URL' }, 400, request, env);
+  }
+
+  if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+    return jsonResponse({ error: 'Only http/https URL is allowed' }, 400, request, env);
+  }
+
+  const uploadLimit = getUploadLimit(env);
+  let remoteResponse;
+  try {
+    remoteResponse = await fetch(parsedUrl.toString(), { redirect: 'follow' });
+  } catch {
+    return jsonResponse({ error: 'Failed to fetch remote image URL' }, 400, request, env);
+  }
+  if (!remoteResponse.ok) {
+    return jsonResponse(
+      { error: `Failed to fetch remote image: HTTP ${remoteResponse.status}` },
+      400,
+      request,
+      env
+    );
+  }
+
+  const remoteType = (remoteResponse.headers.get('content-type') || '')
+    .split(';')[0]
+    .trim()
+    .toLowerCase();
+  if (!remoteType.startsWith('image/')) {
+    return jsonResponse({ error: 'Remote URL is not an image' }, 400, request, env);
+  }
+
+  const contentLength = Number.parseInt(remoteResponse.headers.get('content-length') || '', 10);
+  if (Number.isFinite(contentLength) && contentLength > uploadLimit) {
+    return jsonResponse(
+      { error: `Remote image is too large. Max: ${uploadLimit} bytes` },
+      400,
+      request,
+      env
+    );
+  }
+
+  const body = await remoteResponse.arrayBuffer();
+  if (body.byteLength > uploadLimit) {
+    return jsonResponse({ error: `Remote image is too large. Max: ${uploadLimit} bytes` }, 400, request, env);
+  }
+
+  return saveImageToR2(request, env, {
+    body,
+    contentType: remoteType,
+    fileName: parsedUrl.pathname
   });
-
-  return jsonResponse(
-    {
-      ok: true,
-      key,
-      size: file.size,
-      contentType: file.type,
-      url: buildFileUrl(request, env, key)
-    },
-    200,
-    request,
-    env
-  );
 }
 
 async function handleGetFile(request, env, pathname) {
@@ -118,6 +174,47 @@ async function handleGetFile(request, env, pathname) {
     status: 200,
     headers
   });
+}
+
+function getUploadLimit(env) {
+  const maxUploadBytes = Number.parseInt(env.MAX_UPLOAD_BYTES || '', 10);
+  return Number.isFinite(maxUploadBytes) && maxUploadBytes > 0
+    ? maxUploadBytes
+    : DEFAULT_MAX_UPLOAD_BYTES;
+}
+
+async function saveImageToR2(request, env, options) {
+  if (!env.R2_BUCKET) {
+    return jsonResponse({ error: 'R2 bucket binding missing' }, 500, request, env);
+  }
+
+  const key = buildObjectKey(
+    {
+      type: options.contentType,
+      name: options.fileName || ''
+    },
+    env
+  );
+
+  await env.R2_BUCKET.put(key, options.body, {
+    httpMetadata: {
+      contentType: options.contentType,
+      cacheControl: 'public, max-age=31536000, immutable'
+    }
+  });
+
+  return jsonResponse(
+    {
+      ok: true,
+      key,
+      size: options.body.byteLength,
+      contentType: options.contentType,
+      url: buildFileUrl(request, env, key)
+    },
+    200,
+    request,
+    env
+  );
 }
 
 function buildObjectKey(file, env) {
