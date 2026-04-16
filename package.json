@@ -4,6 +4,11 @@
   "private": true,
   "scripts": {
     "build": "node scripts/build-static.mjs",
-    "build:config": "node scripts/generate-config.mjs"
+    "build:config": "node scripts/generate-config.mjs",
+    "cf:dev": "npm run build && wrangler dev",
+    "cf:deploy": "npm run build && wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.12.0"
   }
 }

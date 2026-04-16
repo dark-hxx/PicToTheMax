@@ -1,112 +1,114 @@
 ﻿# PicToTheMax
 
-一个基于 `KoalasToTheMax` 思路改造的纯前端图片揭示小游戏。
+[![Linux.do](https://img.shields.io/badge/Linux.do-社区-blue.svg)](https://linux.do)
 
-## 已实现功能
+基于 `KoalasToTheMax` 思路改造的图片揭示小游戏。
 
-- 鼠标悬停圆点逐步揭示图片
-- 图片来源支持：URL、本地上传、拖拽上传、粘贴上传
-- 自动揭示 / 全部揭示 / 滚轮缩放 / 全屏查看
-- 导出当前揭示结果为 PNG
-- 分享链接：`?img=<url>`
-- 可选 S3/R2 上传分享（环境变量配置）
+## 当前部署方式
 
-## 项目结构
+ **Cloudflare**：
 
-- `index.html`：主页面（纯静态）
-- `config.js`：本地直接打开时的默认配置
-- `scripts/build-static.mjs`：构建 `dist`（含环境变量注入）
-- `scripts/generate-config.mjs`：单独生成根目录 `config.js`（可选）
-- `cloudflare-worker/`：R2 上传 Worker 示例
-- `vercel.json`：Vercel 构建配置
+- 静态站点资源（`dist`）
+- 上传 API（`POST /upload`）
+- 图片访问 API（`GET /files/:key`）
 
-## 你这次 Cloudflare 报错的根因
 
-报错：`Cloudflare Workers supports assets with sizes of up to 25 MiB ... node_modules/workerd/bin/workerd 118 MiB`
+## 核心功能
 
-根因：Pages 的输出目录如果是项目根目录 `.`，构建产生的 `node_modules` 会被当作静态资源上传，`workerd` 二进制超限。
+- 悬停圆点逐步揭示图片
+- URL / 本地文件 / 拖拽 / 粘贴图片加载
+- 上传到 R2 并生成可分享链接
+- 自动揭示、全部揭示、缩放、全屏、导出
 
-本仓库已修复：
+## 目录说明
 
-- 构建只输出到 `dist/`
-- `dist/` 只包含前端必需文件，不包含 `node_modules`
-- Vercel 输出目录已改为 `dist`
+- `index.html`：前端页面
+- `scripts/build-static.mjs`：构建 `dist`
+- `src/index.js`：单 Worker 入口（静态 + API）
+- `wrangler.toml`：Worker + R2 + assets 配置
 
-## 前端构建与环境变量
-
-前端读取以下变量：
-
-- `S3_UPLOAD_ENDPOINT`：上传接口地址（POST `multipart/form-data`，字段名 `file`）
-- `S3_PUBLIC_BASE_URL`：可选；仅当接口返回 `key` 而非 `url` 时才需要
-
-本地构建示例：
-
-```bash
-# PowerShell
-$env:S3_UPLOAD_ENDPOINT="https://upload.example.com/upload"
-$env:S3_PUBLIC_BASE_URL="https://upload.example.com/files"
-npm run build
-```
-
-构建后产物在 `dist/`。
-
-## Cloudflare R2 上传（推荐：Worker + R2 Binding）
+## 一次性配置
 
 ### 1. 创建 R2 Bucket
 
-Cloudflare Dashboard -> R2 -> Create bucket，记下 bucket 名称。
+Cloudflare Dashboard -> R2 -> Create bucket。
 
-### 2. 配置 Worker
+### 2. 修改 `wrangler.toml`
 
-修改 `cloudflare-worker/wrangler.toml`：
+重点字段：
 
 - `[[r2_buckets]].bucket_name`：你的 bucket 名称
-- `PUBLIC_BASE_URL`：可选，默认留空即可
-- `ALLOWED_ORIGIN`：建议限制为你的前端域名
-- `MAX_UPLOAD_BYTES`：最大上传大小（字节）
-- `R2_KEY_PREFIX`：对象前缀
+- `ALLOWED_ORIGIN`：建议设置为你的站点域名（多个用逗号分隔）
+- `PUBLIC_BASE_URL`：可选。留空时返回 `https://<worker域名>/files/<key>`
 
-### 3. 部署 Worker
+## 本地开发
 
 ```bash
-cd cloudflare-worker
 npm install
-npx wrangler deploy
+npm run cf:dev
 ```
 
-得到 Worker 域名后：
+## 部署
 
-- `S3_UPLOAD_ENDPOINT` = `https://<worker域名>/upload`
-- `S3_PUBLIC_BASE_URL` 可留空（本示例返回 `url`）
+```bash
+npm install
+npm run cf:deploy
+```
 
-## Worker 接口约定
+`cf:deploy` 会先执行前端构建，再执行 `wrangler deploy`。
 
-- `POST /upload`
-  - 入参：`multipart/form-data`，字段 `file`
-  - 返回：`{ ok, key, size, contentType, url }`
-- `GET /files/:key`：读取 R2 文件
-- `GET /health`：健康检查
+## 通过 Cloudflare 页面方式部署
 
-## 部署前端
+1. 进入 `Workers & Pages`，创建或选择 **Worker 项目**。
+2. 在 Worker 的 `Settings -> Builds` 中连接 Git 仓库。
+3. `Root directory` 设为仓库根目录（留空或 `/`）。
+4. `Build command` 设为 `npm run build`。
+5. 不需要单独填写 `Build output directory`，静态产物目录由 `wrangler.toml` 中的 `assets.directory = "./dist"` 决定。
+6. 在 Worker 的绑定配置中添加 R2 Bucket，绑定名必须是 `R2_BUCKET`。
+7. 在变量配置中按需设置：`ALLOWED_ORIGIN`、`PUBLIC_BASE_URL`、`MAX_UPLOAD_BYTES`、`R2_KEY_PREFIX`。
+8. 触发部署（手动 Deploy 或推送新提交）。
 
-### Vercel
+说明：
+- 当前是单 Worker 架构，静态页面和 `/upload` 接口在同一个 Worker 中提供。
+- 如果你使用的是 Pages 流程，会看到不同配置项，容易出现目录配置错误。
 
-1. 导入仓库
-2. 配置环境变量 `S3_UPLOAD_ENDPOINT`、`S3_PUBLIC_BASE_URL`（可选）
-3. Build Command: `npm run build`
-4. Output Directory: `dist`
+## API 约定
 
-### Cloudflare Pages
+### POST `/upload`
 
-1. 新建 Pages 项目并连接仓库
-2. Build command: `npm run build`
-3. Build output directory: `dist`
-4. 环境变量配置 `S3_UPLOAD_ENDPOINT`、`S3_PUBLIC_BASE_URL`（可选）并重新部署
+- Content-Type: `multipart/form-data`
+- 文件字段名：`file`
+- 返回示例：
+
+```json
+{
+  "ok": true,
+  "key": "uploads/2026/04/16/uuid.jpg",
+  "size": 12345,
+  "contentType": "image/jpeg",
+  "url": "https://<worker域名>/files/uploads/2026/04/16/uuid.jpg"
+}
+```
+
+### GET `/files/:key`
+
+返回 R2 图片文件。
+
+### GET `/health`
+
+健康检查。
+
+## 前端配置说明
+
+前端默认上传地址是同源 `/upload`，所以单 Worker 场景下无需额外配置 `S3_UPLOAD_ENDPOINT`。
+
+如果你仍想覆盖上传地址，可在构建前设置：
+
+- `S3_UPLOAD_ENDPOINT`
+- `S3_PUBLIC_BASE_URL`（可选）
 
 ## 常见问题
 
-1. URL 图片加载失败：多为 CORS 限制，换支持跨域的地址。
-2. 上传失败：检查 Worker 路由、`ALLOWED_ORIGIN`、请求体字段是否为 `file`。
-3. 分享链接失效：本地 `blob:` 图不可跨设备分享，先上传到 R2。
-
-![Tux](https://raw.githubusercontent.com/garrett/Tux/ecd40de64250ea2b24c849e901c3297ad01e54f6/tux.svg)
+1. 上传失败：检查 `bucket_name`、R2 绑定、`ALLOWED_ORIGIN`。
+2. 图片无法分享：本地 `blob:` 地址不可跨设备，需先上传到 R2。
+3. 404：确认已执行 `npm run cf:deploy`，且 `assets.directory = "./dist"`。

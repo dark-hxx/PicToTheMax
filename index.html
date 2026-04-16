@@ -238,7 +238,7 @@
   <div class="button-row">
     <input type="file" id="fileInput" accept="image/*" style="display: none" />
     <button class="btn" onclick="triggerFileUpload()">本地上传</button>
-    <button class="btn" onclick="uploadCurrentFileToS3()">上传到 S3</button>
+    <button class="btn" onclick="uploadCurrentFileToS3()">上传到 R2</button>
     <button class="btn" onclick="copyShareLink()">复制分享链接</button>
   </div>
   <div class="presets">
@@ -295,6 +295,7 @@
     S3_UPLOAD_ENDPOINT: '',
     S3_PUBLIC_BASE_URL: ''
   };
+  const DEFAULT_UPLOAD_ENDPOINT = `${window.location.origin}/upload`;
 
   function showLoading(show) {
     const loading = document.getElementById('loading');
@@ -639,17 +640,14 @@
       return;
     }
 
-    if (!APP_CONFIG.S3_UPLOAD_ENDPOINT) {
-      alert('未配置 S3 上传地址。请设置环境变量 S3_UPLOAD_ENDPOINT');
-      return;
-    }
+    const uploadEndpoint = APP_CONFIG.S3_UPLOAD_ENDPOINT || DEFAULT_UPLOAD_ENDPOINT;
 
     try {
       showLoading(true);
       const formData = new FormData();
       formData.append('file', currentLocalFile);
 
-      const response = await fetch(APP_CONFIG.S3_UPLOAD_ENDPOINT, {
+      const response = await fetch(uploadEndpoint, {
         method: 'POST',
         body: formData
       });

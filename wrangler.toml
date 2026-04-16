@@ -1,0 +1,18 @@
+﻿name = "pic-to-the-max"
+main = "src/index.js"
+compatibility_date = "2026-04-16"
+
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+run_worker_first = true
+
+[[r2_buckets]]
+binding = "R2_BUCKET"
+bucket_name = "your-r2-bucket"
+
+[vars]
+PUBLIC_BASE_URL = ""
+ALLOWED_ORIGIN = "*"
+MAX_UPLOAD_BYTES = "10485760"
+R2_KEY_PREFIX = "uploads"

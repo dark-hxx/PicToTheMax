@@ -13,7 +13,7 @@ export default {
     }
 
     if (pathname === '/health' && request.method === 'GET') {
-      return jsonResponse({ ok: true, service: 'r2-upload-worker' }, 200, request, env);
+      return jsonResponse({ ok: true, service: 'pic-to-the-max-worker' }, 200, request, env);
     }
 
     if (pathname === '/upload' && request.method === 'POST') {
@@ -24,9 +24,19 @@ export default {
       return handleGetFile(request, env, pathname);
     }
 
-    return jsonResponse({ error: 'Not found' }, 404, request, env);
+    return serveAssetOr404(request, env);
   }
 };
+
+async function serveAssetOr404(request, env) {
+  if (env.ASSETS && (request.method === 'GET' || request.method === 'HEAD')) {
+    const assetResponse = await env.ASSETS.fetch(request);
+    if (assetResponse.status !== 404) {
+      return assetResponse;
+    }
+  }
+  return new Response('Not found', { status: 404 });
+}
 
 async function handleUpload(request, env) {
   const contentType = request.headers.get('content-type') || '';
@@ -54,6 +64,10 @@ async function handleUpload(request, env) {
     return jsonResponse({ error: `File too large. Max: ${uploadLimit} bytes` }, 400, request, env);
   }
 
+  if (!env.R2_BUCKET) {
+    return jsonResponse({ error: 'R2 bucket binding missing' }, 500, request, env);
+  }
+
   const key = buildObjectKey(file, env);
   const body = await file.arrayBuffer();
 
@@ -64,14 +78,13 @@ async function handleUpload(request, env) {
     }
   });
 
-  const fileUrl = buildFileUrl(request, env, key);
   return jsonResponse(
     {
       ok: true,
       key,
       size: file.size,
       contentType: file.type,
-      url: fileUrl
+      url: buildFileUrl(request, env, key)
     },
     200,
     request,
@@ -80,6 +93,10 @@ async function handleUpload(request, env) {
 }
 
 async function handleGetFile(request, env, pathname) {
+  if (!env.R2_BUCKET) {
+    return jsonResponse({ error: 'R2 bucket binding missing' }, 500, request, env);
+  }
+
   const key = decodeURIComponent(pathname.slice('/files/'.length));
   if (!key) {
     return jsonResponse({ error: 'Missing file key' }, 400, request, env);
@@ -95,9 +112,7 @@ async function handleGetFile(request, env, pathname) {
   headers.set('etag', object.httpEtag);
 
   const corsHeaders = buildCorsHeaders(request, env);
-  Object.keys(corsHeaders).forEach((name) => {
-    headers.set(name, corsHeaders[name]);
-  });
+  Object.keys(corsHeaders).forEach((name) => headers.set(name, corsHeaders[name]));
 
   return new Response(object.body, {
     status: 200,
@@ -111,9 +126,8 @@ function buildObjectKey(file, env) {
   const yyyy = now.getUTCFullYear();
   const mm = String(now.getUTCMonth() + 1).padStart(2, '0');
   const dd = String(now.getUTCDate()).padStart(2, '0');
-  const ext = pickExtension(file);
   const id = crypto.randomUUID();
-  return `${prefix}/${yyyy}/${mm}/${dd}/${id}.${ext}`;
+  return `${prefix}/${yyyy}/${mm}/${dd}/${id}.${pickExtension(file)}`;
 }
 
 function pickExtension(file) {
@@ -124,6 +138,7 @@ function pickExtension(file) {
     'image/gif': 'gif',
     'image/avif': 'avif'
   };
+
   if (byType[file.type]) {
     return byType[file.type];
   }
@@ -133,6 +148,7 @@ function pickExtension(file) {
   if (idx > 0 && idx < name.length - 1) {
     return name.slice(idx + 1).toLowerCase().replace(/[^a-z0-9]/g, '') || 'bin';
   }
+
   return 'bin';
 }
 
@@ -162,8 +178,8 @@ function buildCorsHeaders(request, env) {
 
   let allowOrigin = '*';
   if (raw !== '*') {
-    const allowed = raw.split(',').map((v) => v.trim()).filter(Boolean);
-    allowOrigin = allowed.includes(origin) ? origin : allowed[0] || 'null';
+    const allowed = raw.split(',').map((item) => item.trim()).filter(Boolean);
+    allowOrigin = allowed.includes(origin) ? origin : (allowed[0] || 'null');
   }
 
   return {
