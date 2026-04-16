@@ -1,0 +1,820 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pic To The Max</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      overflow: hidden;
+      background: radial-gradient(circle at top, #2a2a2a, #141414 60%);
+      color: #fff;
+    }
+
+    .container {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    .circle-container {
+      position: absolute;
+      inset: 0;
+      transition: transform 0.1s ease-out;
+    }
+
+    .circle {
+      position: absolute;
+      border-radius: 50%;
+      cursor: pointer;
+      transform: translate(-50%, -50%);
+      transition: transform 0.12s ease-out;
+      will-change: transform;
+    }
+
+    .circle:hover {
+      transform: translate(-50%, -50%) scale(1.06);
+      z-index: 100;
+      box-shadow: 0 0 18px rgba(255, 255, 255, 0.28);
+    }
+
+    .panel {
+      position: fixed;
+      background: rgba(0, 0, 0, 0.58);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 16px;
+      backdrop-filter: blur(8px);
+      z-index: 1000;
+    }
+
+    .top-left {
+      top: 14px;
+      left: 14px;
+      padding: 12px;
+      width: min(520px, calc(100vw - 28px));
+    }
+
+    .top-right {
+      top: 14px;
+      right: 14px;
+      padding: 12px 14px;
+      min-width: 220px;
+    }
+
+    .center-top {
+      top: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 10px 18px;
+      text-align: center;
+      min-width: 280px;
+    }
+
+    .info-title {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .info-sub {
+      font-size: 13px;
+      opacity: 0.88;
+    }
+
+    .input-row,
+    .button-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .button-row {
+      margin-top: 10px;
+    }
+
+    .image-url-input {
+      flex: 1;
+      min-width: 180px;
+      padding: 10px 12px;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.08);
+      color: #fff;
+      outline: none;
+    }
+
+    .image-url-input:focus {
+      border-color: rgba(255, 255, 255, 0.55);
+    }
+
+    .btn {
+      padding: 9px 14px;
+      border: 1px solid rgba(255, 255, 255, 0.45);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 13px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .btn:hover {
+      background: rgba(255, 255, 255, 0.2);
+      transform: translateY(-1px);
+    }
+
+    .btn:active {
+      transform: translateY(0);
+    }
+
+    .presets {
+      margin-top: 10px;
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .preset-btn {
+      padding: 6px 10px;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.08);
+      color: #fff;
+      cursor: pointer;
+      font-size: 12px;
+    }
+
+    .preset-btn:hover {
+      background: rgba(255, 255, 255, 0.18);
+    }
+
+    .stats-line {
+      font-size: 13px;
+      line-height: 1.8;
+    }
+
+    .controls {
+      position: fixed;
+      bottom: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(98vw, 980px);
+      z-index: 1000;
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      padding: 8px;
+      background: rgba(0, 0, 0, 0.45);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 14px;
+      backdrop-filter: blur(8px);
+    }
+
+    .loading {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 2000;
+      background: rgba(0, 0, 0, 0.5);
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .hint {
+      position: fixed;
+      bottom: 72px;
+      right: 14px;
+      padding: 8px 12px;
+      font-size: 12px;
+      opacity: 0.92;
+      z-index: 1000;
+      border-radius: 10px;
+      background: rgba(0, 0, 0, 0.55);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+    }
+
+    @media (max-width: 768px) {
+      .center-top {
+        top: auto;
+        bottom: 116px;
+        width: calc(100vw - 28px);
+      }
+
+      .top-right {
+        top: auto;
+        right: 14px;
+        bottom: 116px;
+      }
+
+      .hint {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div class="circle-container" id="circleContainer"></div>
+</div>
+
+<div class="panel top-left">
+  <div class="input-row">
+    <input type="text" id="imageUrlInput" class="image-url-input" placeholder="输入图片 URL，回车加载" value="https://picsum.photos/seed/demo/1000/1000" />
+    <button class="btn" id="loadUrlBtn" onclick="loadNewImage()">加载</button>
+  </div>
+  <div class="button-row">
+    <input type="file" id="fileInput" accept="image/*" style="display: none" />
+    <button class="btn" onclick="triggerFileUpload()">本地上传</button>
+    <button class="btn" onclick="uploadCurrentFileToS3()">上传到 S3</button>
+    <button class="btn" onclick="copyShareLink()">复制分享链接</button>
+  </div>
+  <div class="presets">
+    <button class="preset-btn" onclick="loadPresetImage('./img/koalas.jpg')">Koalas</button>
+    <button class="preset-btn" onclick="loadPresetImage('./img/otter.jpg')">Otter</button>
+    <button class="preset-btn" onclick="loadPresetImage('./img/lion.jpg')">Lion</button>
+    <button class="preset-btn" onclick="loadPresetImage('https://picsum.photos/seed/nature/1000/1000')">Nature</button>
+    <button class="preset-btn" onclick="loadPresetImage('https://picsum.photos/seed/city/1000/1000')">City</button>
+  </div>
+</div>
+
+<div class="panel center-top" id="infoBox">
+  <div class="info-title" id="infoTitle">悬停圆点逐步揭示图片</div>
+  <div class="info-sub" id="infoDesc">支持 URL、本地上传、拖拽和粘贴图片</div>
+</div>
+
+<div class="panel top-right" id="stats">
+  <div class="stats-line">层级: <span id="levelDisplay">0</span> / 6</div>
+  <div class="stats-line">圆点数: <span id="circleCount">1</span></div>
+  <div class="stats-line">完成度: <span id="progress">0%</span></div>
+  <div class="stats-line">缩放: <span id="zoomLevel">100%</span></div>
+</div>
+
+<div class="controls">
+  <button class="btn" onclick="resetGame()">重新开始</button>
+  <button class="btn" onclick="revealAll()">全部揭示</button>
+  <button class="btn" id="autoRevealBtn" onclick="toggleAutoReveal(this)">自动揭示</button>
+  <button class="btn" onclick="exportImage()">导出图片</button>
+  <button class="btn" onclick="toggleFullscreen()">全屏模式</button>
+</div>
+
+<div class="hint" id="zoomIndicator">滚轮缩放: 100%</div>
+<div class="loading" id="loading">加载中...</div>
+
+<script src="./config.js"></script>
+<script>
+  const GRID_SIZE = 64;
+  const MAX_LEVEL = Math.log2(GRID_SIZE);
+
+  let circles = [];
+  let imageData = null;
+  let canvas = null;
+  let currentImageUrl = 'https://picsum.photos/seed/demo/1000/1000';
+  let isProcessing = false;
+  let autoRevealInterval = null;
+  let currentScale = 1;
+  let baseSize = 0;
+  let revealStartTime = null;
+  let currentLocalFile = null;
+  let activeObjectUrl = null;
+
+  const totalCirclesAtMaxLevel = GRID_SIZE * GRID_SIZE;
+  const APP_CONFIG = window.__APP_CONFIG__ || {
+    S3_UPLOAD_ENDPOINT: '',
+    S3_PUBLIC_BASE_URL: ''
+  };
+
+  function showLoading(show) {
+    const loading = document.getElementById('loading');
+    loading.style.display = show ? 'flex' : 'none';
+  }
+
+  function initCanvas() {
+    canvas = document.createElement('canvas');
+    canvas.width = GRID_SIZE;
+    canvas.height = GRID_SIZE;
+  }
+
+  function getImageSrc(url) {
+    if (url.startsWith('blob:') || url.startsWith('data:')) {
+      return url;
+    }
+    return `${url}${url.includes('?') ? '&' : '?'}t=${Date.now()}`;
+  }
+
+  function loadImageAndGetData(url) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      if (/^https?:\/\//i.test(url)) {
+        img.crossOrigin = 'anonymous';
+      }
+      img.onload = () => {
+        if (!canvas) initCanvas();
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, GRID_SIZE, GRID_SIZE);
+        ctx.drawImage(img, 0, 0, GRID_SIZE, GRID_SIZE);
+        imageData = ctx.getImageData(0, 0, GRID_SIZE, GRID_SIZE).data;
+        resolve(imageData);
+      };
+      img.onerror = () => reject(new Error('图片加载失败'));
+      img.src = getImageSrc(url);
+    });
+  }
+
+  function getPixelColor(x, y) {
+    if (!imageData) return '#666666';
+    const index = (y * GRID_SIZE + x) * 4;
+    const r = imageData[index];
+    const g = imageData[index + 1];
+    const b = imageData[index + 2];
+    return `rgb(${r}, ${g}, ${b})`;
+  }
+
+  function updateStats() {
+    const currentCircles = circles.length;
+    const progress = ((currentCircles / totalCirclesAtMaxLevel) * 100).toFixed(1);
+
+    let maxCurrentLevel = 0;
+    circles.forEach((c) => {
+      const level = Number.parseInt(c.dataset.level, 10);
+      if (level > maxCurrentLevel) {
+        maxCurrentLevel = level;
+      }
+    });
+
+    document.getElementById('levelDisplay').textContent = String(maxCurrentLevel);
+    document.getElementById('circleCount').textContent = String(currentCircles);
+    document.getElementById('progress').textContent = `${progress}%`;
+
+    if (currentCircles >= totalCirclesAtMaxLevel && !revealStartTime) {
+      revealStartTime = Date.now();
+      document.getElementById('infoTitle').textContent = '已完整揭示';
+      document.getElementById('infoDesc').textContent = '可继续缩放查看细节，或导出与分享';
+    }
+  }
+
+  function createCircle(x, y, size, gridX, gridY, level, parentElement) {
+    const circle = document.createElement('div');
+    circle.className = 'circle';
+    circle.style.width = `${size}px`;
+    circle.style.height = `${size}px`;
+    circle.style.left = `${x}px`;
+    circle.style.top = `${y}px`;
+    circle.style.backgroundColor = getPixelColor(gridX, gridY);
+    circle.dataset.gridX = String(gridX);
+    circle.dataset.gridY = String(gridY);
+    circle.dataset.level = String(level);
+    circle.dataset.x = String(x);
+    circle.dataset.y = String(y);
+
+    if (level < MAX_LEVEL) {
+      circle.addEventListener('mouseenter', () => {
+        if (!isProcessing) {
+          splitCircle(circle, x, y, size, gridX, gridY, level);
+        }
+      });
+    }
+
+    parentElement.appendChild(circle);
+    circles.push(circle);
+    updateStats();
+    return circle;
+  }
+
+  function splitCircle(circle, x, y, size, gridX, gridY, level) {
+    if (isProcessing || level >= MAX_LEVEL) {
+      return;
+    }
+
+    isProcessing = true;
+    circle.remove();
+    circles = circles.filter((c) => c !== circle);
+
+    const nextLevel = level + 1;
+    const newSize = size / 2;
+    const positions = [
+      { x: x - newSize / 2, y: y - newSize / 2, gx: gridX * 2, gy: gridY * 2 },
+      { x: x + newSize / 2, y: y - newSize / 2, gx: gridX * 2 + 1, gy: gridY * 2 },
+      { x: x - newSize / 2, y: y + newSize / 2, gx: gridX * 2, gy: gridY * 2 + 1 },
+      { x: x + newSize / 2, y: y + newSize / 2, gx: gridX * 2 + 1, gy: gridY * 2 + 1 }
+    ];
+
+    const container = document.getElementById('circleContainer');
+    positions.forEach((p) => {
+      createCircle(p.x, p.y, newSize, p.gx, p.gy, nextLevel, container);
+    });
+
+    setTimeout(() => {
+      isProcessing = false;
+    }, 16);
+  }
+
+  function clearBoard() {
+    const container = document.getElementById('circleContainer');
+    container.innerHTML = '';
+    circles = [];
+  }
+
+  function revealAll() {
+    stopAutoReveal();
+    clearBoard();
+
+    const container = document.getElementById('circleContainer');
+    const centerX = window.innerWidth / 2;
+    const centerY = window.innerHeight / 2;
+    const initialSize = Math.min(window.innerWidth, window.innerHeight) * 0.85;
+    const cellSize = initialSize / GRID_SIZE;
+
+    for (let y = 0; y < GRID_SIZE; y += 1) {
+      for (let x = 0; x < GRID_SIZE; x += 1) {
+        const posX = centerX - initialSize / 2 + (x + 0.5) * cellSize;
+        const posY = centerY - initialSize / 2 + (y + 0.5) * cellSize;
+
+        const circle = document.createElement('div');
+        circle.className = 'circle';
+        circle.style.width = `${cellSize}px`;
+        circle.style.height = `${cellSize}px`;
+        circle.style.left = `${posX}px`;
+        circle.style.top = `${posY}px`;
+        circle.style.backgroundColor = getPixelColor(x, y);
+        circle.dataset.gridX = String(x);
+        circle.dataset.gridY = String(y);
+        circle.dataset.level = String(MAX_LEVEL);
+
+        container.appendChild(circle);
+        circles.push(circle);
+      }
+    }
+
+    updateStats();
+  }
+
+  function toggleAutoReveal(button) {
+    if (autoRevealInterval) {
+      stopAutoReveal();
+      return;
+    }
+    startAutoReveal(button);
+  }
+
+  function startAutoReveal(button) {
+    if (!button) return;
+    button.textContent = '停止自动揭示';
+    autoRevealInterval = setInterval(() => {
+      const unrevealed = circles.filter((c) => Number.parseInt(c.dataset.level, 10) < MAX_LEVEL);
+      if (unrevealed.length === 0) {
+        stopAutoReveal();
+        return;
+      }
+
+      const randomCircle = unrevealed[Math.floor(Math.random() * unrevealed.length)];
+      const x = Number.parseFloat(randomCircle.dataset.x);
+      const y = Number.parseFloat(randomCircle.dataset.y);
+      const size = Number.parseFloat(randomCircle.style.width);
+      const gridX = Number.parseInt(randomCircle.dataset.gridX, 10);
+      const gridY = Number.parseInt(randomCircle.dataset.gridY, 10);
+      const level = Number.parseInt(randomCircle.dataset.level, 10);
+
+      splitCircle(randomCircle, x, y, size, gridX, gridY, level);
+    }, 90);
+  }
+
+  function stopAutoReveal() {
+    if (autoRevealInterval) {
+      clearInterval(autoRevealInterval);
+      autoRevealInterval = null;
+    }
+    const autoBtn = document.getElementById('autoRevealBtn');
+    if (autoBtn) {
+      autoBtn.textContent = '自动揭示';
+    }
+  }
+
+  function exportImage() {
+    const exportCanvas = document.createElement('canvas');
+    exportCanvas.width = GRID_SIZE;
+    exportCanvas.height = GRID_SIZE;
+    const ctx = exportCanvas.getContext('2d');
+
+    circles.forEach((circle) => {
+      const gridX = Number.parseInt(circle.dataset.gridX, 10);
+      const gridY = Number.parseInt(circle.dataset.gridY, 10);
+      ctx.fillStyle = circle.style.backgroundColor;
+      ctx.fillRect(gridX, gridY, 1, 1);
+    });
+
+    const link = document.createElement('a');
+    link.download = `pixel-art-${Date.now()}.png`;
+    link.href = exportCanvas.toDataURL('image/png');
+    link.click();
+  }
+
+  function toggleFullscreen() {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen().catch(() => {});
+    }
+  }
+
+  function loadPresetImage(url) {
+    const input = document.getElementById('imageUrlInput');
+    input.value = url;
+    loadNewImage();
+  }
+
+  function updateZoomDisplay() {
+    const zoomPercent = Math.round(currentScale * 100);
+    document.getElementById('zoomLevel').textContent = `${zoomPercent}%`;
+    document.getElementById('zoomIndicator').textContent = `滚轮缩放: ${zoomPercent}%`;
+  }
+
+  function resetGame() {
+    stopAutoReveal();
+    clearBoard();
+    isProcessing = false;
+    currentScale = 1;
+    revealStartTime = null;
+
+    const container = document.getElementById('circleContainer');
+    container.style.transform = 'scale(1)';
+    updateZoomDisplay();
+
+    document.getElementById('infoTitle').textContent = '悬停圆点逐步揭示图片';
+    document.getElementById('infoDesc').textContent = '支持 URL、本地上传、拖拽和粘贴图片';
+
+    initRootCircle();
+  }
+
+  async function loadNewImage() {
+    const input = document.getElementById('imageUrlInput');
+    const url = input.value.trim();
+    if (!url) return;
+
+    try {
+      currentLocalFile = null;
+      currentImageUrl = url;
+      showLoading(true);
+      await loadImageAndGetData(currentImageUrl);
+      resetGame();
+    } catch (error) {
+      alert('图片加载失败，请检查 URL 或跨域设置');
+    } finally {
+      showLoading(false);
+    }
+  }
+
+  function triggerFileUpload() {
+    document.getElementById('fileInput').click();
+  }
+
+  async function loadLocalFile(file) {
+    if (!file || !file.type.startsWith('image/')) {
+      alert('请选择图片文件');
+      return;
+    }
+
+    if (activeObjectUrl) {
+      URL.revokeObjectURL(activeObjectUrl);
+      activeObjectUrl = null;
+    }
+
+    activeObjectUrl = URL.createObjectURL(file);
+    currentLocalFile = file;
+    currentImageUrl = activeObjectUrl;
+    document.getElementById('imageUrlInput').value = currentImageUrl;
+
+    try {
+      showLoading(true);
+      await loadImageAndGetData(currentImageUrl);
+      resetGame();
+    } catch (error) {
+      alert('本地图片加载失败');
+    } finally {
+      showLoading(false);
+    }
+  }
+
+  function getUploadUrlFromResponse(data) {
+    if (!data || typeof data !== 'object') {
+      return '';
+    }
+
+    if (typeof data.url === 'string' && data.url) {
+      return data.url;
+    }
+    if (typeof data.location === 'string' && data.location) {
+      return data.location;
+    }
+    if (typeof data.Location === 'string' && data.Location) {
+      return data.Location;
+    }
+    if (data.data && typeof data.data.url === 'string' && data.data.url) {
+      return data.data.url;
+    }
+
+    const key = data.key || (data.data && data.data.key);
+    if (!key || !APP_CONFIG.S3_PUBLIC_BASE_URL) {
+      return '';
+    }
+    const base = APP_CONFIG.S3_PUBLIC_BASE_URL.replace(/\/$/, '');
+    return `${base}/${String(key).replace(/^\//, '')}`;
+  }
+
+  async function uploadCurrentFileToS3() {
+    if (!currentLocalFile) {
+      alert('请先本地上传图片，再执行 S3 上传');
+      return;
+    }
+
+    if (!APP_CONFIG.S3_UPLOAD_ENDPOINT) {
+      alert('未配置 S3 上传地址。请设置环境变量 S3_UPLOAD_ENDPOINT');
+      return;
+    }
+
+    try {
+      showLoading(true);
+      const formData = new FormData();
+      formData.append('file', currentLocalFile);
+
+      const response = await fetch(APP_CONFIG.S3_UPLOAD_ENDPOINT, {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      const uploadedUrl = getUploadUrlFromResponse(data);
+      if (!uploadedUrl) {
+        throw new Error('响应中未找到可用 URL');
+      }
+
+      currentImageUrl = uploadedUrl;
+      currentLocalFile = null;
+      document.getElementById('imageUrlInput').value = uploadedUrl;
+      await loadNewImage();
+      await copyShareLink();
+    } catch (error) {
+      alert(`S3 上传失败: ${error.message || 'unknown error'}`);
+    } finally {
+      showLoading(false);
+    }
+  }
+
+  async function copyShareLink() {
+    if (!currentImageUrl || currentImageUrl.startsWith('blob:')) {
+      alert('本地 blob URL 无法直接分享，请先上传到 S3');
+      return;
+    }
+
+    const shareUrl = new URL(window.location.href);
+    shareUrl.searchParams.set('img', currentImageUrl);
+    const text = shareUrl.toString();
+
+    try {
+      await navigator.clipboard.writeText(text);
+      alert('分享链接已复制');
+    } catch (error) {
+      window.prompt('请复制分享链接', text);
+    }
+  }
+
+  function initRootCircle() {
+    clearBoard();
+    const container = document.getElementById('circleContainer');
+    const centerX = window.innerWidth / 2;
+    const centerY = window.innerHeight / 2;
+    baseSize = Math.min(window.innerWidth, window.innerHeight) * 0.85;
+    createCircle(centerX, centerY, baseSize, 0, 0, 0, container);
+  }
+
+  function initImageSourceFromQuery() {
+    const params = new URLSearchParams(window.location.search);
+    const img = params.get('img');
+    if (img) {
+      currentImageUrl = img;
+      document.getElementById('imageUrlInput').value = img;
+    }
+  }
+
+  function initInputEvents() {
+    document.getElementById('imageUrlInput').addEventListener('keypress', async (event) => {
+      if (event.key === 'Enter') {
+        await loadNewImage();
+      }
+    });
+
+    document.getElementById('fileInput').addEventListener('change', async (event) => {
+      const file = event.target.files && event.target.files[0];
+      if (file) {
+        await loadLocalFile(file);
+      }
+      event.target.value = '';
+    });
+
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach((eventName) => {
+      window.addEventListener(eventName, (event) => {
+        event.preventDefault();
+      });
+    });
+
+    window.addEventListener('drop', async (event) => {
+      const file = event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files[0];
+      if (file) {
+        await loadLocalFile(file);
+      }
+    });
+
+    window.addEventListener('paste', async (event) => {
+      const items = event.clipboardData && event.clipboardData.items;
+      if (!items) return;
+      for (let i = 0; i < items.length; i += 1) {
+        const item = items[i];
+        if (item.type && item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) {
+            await loadLocalFile(file);
+            break;
+          }
+        }
+      }
+    });
+  }
+
+  function initResizeAndZoom() {
+    window.addEventListener('resize', () => {
+      const centerX = window.innerWidth / 2;
+      const centerY = window.innerHeight / 2;
+      const newBaseSize = Math.min(window.innerWidth, window.innerHeight) * 0.85;
+      const scaleRatio = baseSize === 0 ? 1 : newBaseSize / baseSize;
+
+      circles.forEach((circle) => {
+        const currentLeft = Number.parseFloat(circle.style.left);
+        const currentTop = Number.parseFloat(circle.style.top);
+        const currentWidth = Number.parseFloat(circle.style.width);
+        const currentHeight = Number.parseFloat(circle.style.height);
+
+        const newLeft = centerX + (currentLeft - centerX) * scaleRatio;
+        const newTop = centerY + (currentTop - centerY) * scaleRatio;
+        const newWidth = currentWidth * scaleRatio;
+        const newHeight = currentHeight * scaleRatio;
+
+        circle.style.left = `${newLeft}px`;
+        circle.style.top = `${newTop}px`;
+        circle.style.width = `${newWidth}px`;
+        circle.style.height = `${newHeight}px`;
+        circle.dataset.x = String(newLeft);
+        circle.dataset.y = String(newTop);
+      });
+
+      baseSize = newBaseSize;
+    });
+
+    window.addEventListener('wheel', (event) => {
+      event.preventDefault();
+      const delta = event.deltaY > 0 ? 0.9 : 1.1;
+      currentScale *= delta;
+      currentScale = Math.max(0.1, Math.min(10, currentScale));
+
+      const container = document.getElementById('circleContainer');
+      container.style.transform = `scale(${currentScale})`;
+      container.style.transformOrigin = 'center center';
+      updateZoomDisplay();
+    }, { passive: false });
+  }
+
+  async function initGame() {
+    try {
+      showLoading(true);
+      await loadImageAndGetData(currentImageUrl);
+      initRootCircle();
+      updateZoomDisplay();
+    } catch (error) {
+      alert('初始化失败，请检查图片地址或网络');
+    } finally {
+      showLoading(false);
+    }
+  }
+
+  initImageSourceFromQuery();
+  initInputEvents();
+  initResizeAndZoom();
+  initGame();
+</script>
+</body>
+</html>

@@ -1,0 +1,24 @@
+﻿name = "pic-to-the-max-upload"
+main = "src/index.js"
+compatibility_date = "2026-04-16"
+
+# 绑定 R2 Bucket。bucket_name 改成你自己的 bucket 名称。
+[[r2_buckets]]
+binding = "R2_BUCKET"
+bucket_name = "your-r2-bucket"
+
+[vars]
+# 可选：上传完成后返回 URL 的前缀。
+# 例如：https://upload.example.com/files
+# 留空则默认使用当前 Worker 域名 + /files
+PUBLIC_BASE_URL = ""
+
+# 建议只允许你的前端域名，多个域名用英文逗号分隔。
+# 例如：https://your-vercel-app.vercel.app,https://your-pages.pages.dev
+ALLOWED_ORIGIN = "*"
+
+# 单文件最大上传体积（字节），默认 10MB
+MAX_UPLOAD_BYTES = "10485760"
+
+# R2 对象 key 前缀
+R2_KEY_PREFIX = "uploads"
